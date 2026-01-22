@@ -1,0 +1,15 @@
+find_package(CUDAToolkit REQUIRED)
+list(APPEND COMMON_INCLUDE_DIRS ${CUDAToolkit_INCLUDE_DIRS})
+list(APPEND COMMON_LIBRARIES ${CUDAToolkit_LIBRARIES})
+
+# find_package(Torch REQUIRED)
+# list(APPEND COMMON_INCLUDE_DIRS ${TORCH_INCLUDE_DIRS})
+# list(APPEND COMMON_LIBRARIES ${TORCH_LIBRARIES})
+
+# find_library(TORCH_PYTHON_LIBRARY torch_python PATH "${TORCH_INSTALL_PREFIX}/lib")
+# find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+
+
+
+
+
