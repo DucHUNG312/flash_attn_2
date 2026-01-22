@@ -36,6 +36,10 @@ struct Layout_t {
   FA_DEVICE_CONSTEXPR int operator()(int i, int j) {
     return Swizzle::apply((i * kRowStride) + (j * kColStride_));
   }
+
+  FA_DEVICE_CONSTEXPR static int swizzle_offset(int idx) {
+    return Swizzle::apply(idx);
+  }
 };
 
 } // namespace flash

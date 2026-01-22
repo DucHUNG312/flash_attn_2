@@ -109,12 +109,10 @@ struct Gemm_kernel_traits_t {
   using C_GSCopyTraits =
       GS_traits_t<AccElement, WarpLayout, C_GLayout, C_SLayout>;
 
-  using A_SRCopyTraits =
-      SR_traits_t<Element, WarpLayout, A_SLayout, A_RLayout, Mma_Atom>;
-  using B_SRCopyTraits =
-      SR_traits_t<Element, WarpLayout, B_SLayout, B_RLayout, Mma_Atom>;
+  using A_SRCopyTraits = SR_traits_t<Element, WarpLayout, A_SLayout, A_RLayout>;
+  using B_SRCopyTraits = SR_traits_t<Element, WarpLayout, B_SLayout, B_RLayout>;
   using C_SRCopyTraits =
-      SR_traits_t<AccElement, WarpLayout, C_SLayout, C_RLayout, Mma_Atom>;
+      SR_traits_t<AccElement, WarpLayout, C_SLayout, C_RLayout>;
 
   using A_G2s = GSLoader<A_GSCopyTraits>;
   using B_G2s = GSLoader<B_GSCopyTraits>;
@@ -191,10 +189,7 @@ struct Gemm_kernel_t {
       const Element* __restrict__ a,
       const Element* __restrict__ b,
       AccElement* __restrict__ c) {
-    __shared__ Element a_smem[A_STensor::kNumel];
-    __shared__ Element b_smem[B_STensor::kNumel];
-    __shared__ AccElement c_smem[C_STensor::kNumel];
-
+    extern __shared__ __align__(sizeof(double)) unsigned char smem[];
     const Element* a_base_gptr = a + blockIdx.x * kTM * kK;
     const Element* b_base_gptr = b + blockIdx.y * kTN * kK;
     AccElement* c_base_gptr = c + blockIdx.x * kTM * kN + blockIdx.y * kTN;
@@ -203,9 +198,10 @@ struct Gemm_kernel_t {
     B_GTiler b_gtiler{b_base_gptr};
     C_GTensor c_gtensor{c_base_gptr};
 
-    A_STensor a_stensor{a_smem};
-    B_STensor b_stensor{b_smem};
-    C_STensor c_stensor{c_smem};
+    A_STensor a_stensor{reinterpret_cast<Element*>(smem)};
+    B_STensor b_stensor{
+        reinterpret_cast<Element*>(smem + A_STensor::kNumel * sizeof(Element))};
+    C_STensor c_stensor{reinterpret_cast<AccElement*>(smem)};
 
     A_RTensor a_rtensor{};
     B_RTensor b_rtensor{};

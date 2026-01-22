@@ -1,6 +1,5 @@
 #pragma once
 
-#include "gemm.h"
 #include "layout.h"
 #include "ptx.h"
 #include "swizzle.h"
@@ -13,25 +12,23 @@ template <
     typename Element_,
     typename WarpLayout_,
     typename SLayout_,
-    typename RLayout_,
-    typename Mma_Atom_ = Mma_Atom_16x16x16>
+    typename RLayout_>
 struct SR_traits_t {
   using WarpLayout = WarpLayout_;
   using Element = Element_;
   using RLayout = RLayout_;
   using SLayout = SLayout_;
   using ThreadInfo = Thread_info_t<Element>;
-  using Mma_Atom = Mma_Atom_;
 
-  static constexpr int kTileRowStride = Mma_Atom::kRows;
-  static constexpr int kTileColStride = Mma_Atom::kCols;
+  static constexpr int kTileRowStride = S2R_tile_shape_t::kThrRows;
+  static constexpr int kTileColStride =
+      S2R_tile_shape_t::kThrCols * ThreadInfo::kElePerThread;
   static constexpr int kRowIters = RLayout::kRows;
   static constexpr int kColIters = RLayout::kCols;
 
   FA_DEVICE_CONSTEXPR static int shared_warp_base_offset() {
-    const int row = get_warp_row<WarpLayout>() * Mma_Atom::kRows;
-    const int col = get_warp_col<WarpLayout>() * Mma_Atom::kCols *
-        ThreadInfo::kElePerThread;
+    const int row = get_warp_row<WarpLayout>() * kTileRowStride;
+    const int col = get_warp_col<WarpLayout>() * kTileColStride;
     return (row * SLayout::kRowStride) + (col * SLayout::kColStride);
   }
   FA_DEVICE_CONSTEXPR static int s2r_lane_row_id() {
@@ -97,23 +94,26 @@ struct SRStorer {
   FA_DEVICE_CONSTEXPR void operator()(
       const RTensor& r_tensor,
       STensor& s_tensor) {
+    using RFragment = typename RTensor::Element;
     const int s_warp_base_offset = SRTraits::shared_warp_base_offset();
 #pragma unroll
     for (int i = 0; i < kRowIters; i++) {
 #pragma unroll
       for (int j = 0; j < kColIters; j++) {
-        const int s_lane_offset =
-            s_warp_base_offset +
-            SLayout{}(
-                (i * R2S_tile_shape_t::kThrRows) + SRTraits::r2s_lane_row_id(),
-                (j * SRTraits::kTileColStride) + SRTraits::r2s_lane_col_id());
-        *reinterpret_cast<uint4*>(s_tensor.data + s_lane_offset) = make_uint4(
-            reinterpret_cast<const uint32_t&>(r_tensor(i, j)(0, 0)),
-            reinterpret_cast<const uint32_t&>(r_tensor(i, j)(1, 0)),
-            reinterpret_cast<const uint32_t&>(
-                r_tensor(i, j)(0, ThreadInfo::kElePerReg)),
-            reinterpret_cast<const uint32_t&>(
-                r_tensor(i, j)(1, ThreadInfo::kElePerReg)));
+#pragma unroll
+        for (int m = 0; m < RFragment::kRows; m++) {
+          const int row = (i * SRTraits::kTileRowStride) +
+              (m * FA_FRAGMENT_ROWS) + SRTraits::r2s_lane_row_id();
+#pragma unroll
+          for (int n = 0; n < RFragment::kCols / ThreadInfo::kElePerReg; n++) {
+            const int col = (j * SRTraits::kTileColStride) +
+                (n * FA_FRAGMENT_ROWS) + SRTraits::r2s_lane_col_id();
+            const int s_lane_offset = s_warp_base_offset + SLayout{}(row, col);
+            *reinterpret_cast<uint32_t*>(s_tensor.data + s_lane_offset) =
+                reinterpret_cast<const uint32_t&>(
+                    r_tensor(i, j)(m, n * ThreadInfo::kElePerReg));
+          }
+        }
       }
     }
   }

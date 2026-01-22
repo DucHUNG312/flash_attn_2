@@ -149,7 +149,15 @@ TEST(GemmTest, Gemm_1024x1024x2048_Blk256x128x64) {
   dim3 gridDim(kM / BLK_M, kN / BLK_N);
   dim3 blockDim(WARP_SIZE * WarpLayout::kNumel);
 
-  gemm_f16f16f32_kernel<GemmKernel><<<gridDim, blockDim>>>(d_a, d_b, d_c);
+  static constexpr int smem_size_inputs =
+      BLK_K * (BLK_N + BLK_M) * sizeof(half);
+  static constexpr int smem_size_accumulators = BLK_M * BLK_N * sizeof(float);
+  static constexpr int smem_size = smem_size_inputs > smem_size_accumulators
+      ? smem_size_inputs
+      : smem_size_accumulators;
+
+  gemm_f16f16f32_kernel<GemmKernel>
+      <<<gridDim, blockDim, smem_size>>>(d_a, d_b, d_c);
 
   cudaError_t err = cudaDeviceSynchronize();
   ASSERT_EQ(err, cudaSuccess) << "Kernel failed: " << cudaGetErrorString(err);

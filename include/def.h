@@ -4,6 +4,9 @@
 #include <cuda_fp16.h>
 
 #define WARP_SIZE 32
+#define FA_FRAGMENT_ROWS 8
+#define FA_FRAGMENT_COLS 8
+
 #define FA_DEVICE __forceinline__ __device__
 #define FA_HOST_DEVICE __forceinline__ __host__ __device__
 #define FA_DEVICE_CONSTEXPR __forceinline__ __device__ constexpr

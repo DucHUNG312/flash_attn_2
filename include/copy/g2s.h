@@ -67,9 +67,12 @@ struct GSLoader {
         const int g_lane_offset = g_warp_base_offset +
             GLayout{}((i * GSTraits::kWarpRowStride) + GSTraits::lane_row_id(),
                       (j * GSTraits::kWarpColStride) + GSTraits::lane_col_id());
-        const int s_lane_offset = s_warp_base_offset +
-            SLayout{}((i * GSTraits::kWarpRowStride) + GSTraits::lane_row_id(),
-                      (j * GSTraits::kWarpColStride) + GSTraits::lane_col_id());
+        const int s_lane_offset = SLayout::swizzle_offset(
+            s_warp_base_offset +
+            (i * GSTraits::kWarpRowStride + GSTraits::lane_row_id()) *
+                SLayout::kRowStride +
+            (j * GSTraits::kWarpColStride + GSTraits::lane_col_id()) *
+                SLayout::kColStride);
 #ifdef FA_DEVICE_SUPPORTED
         cp_async<ThreadInfo::kMaxBytes>(
             g_tensor.data + g_lane_offset, s_tensor.data + s_lane_offset);
@@ -104,9 +107,12 @@ struct GSStorer {
         const int g_lane_offset = g_warp_base_offset +
             GLayout{}((i * GSTraits::kWarpRowStride) + GSTraits::lane_row_id(),
                       (j * GSTraits::kWarpColStride) + GSTraits::lane_col_id());
-        const int s_lane_offset = s_warp_base_offset +
-            SLayout{}((i * GSTraits::kWarpRowStride) + GSTraits::lane_row_id(),
-                      (j * GSTraits::kWarpColStride) + GSTraits::lane_col_id());
+        const int s_lane_offset = SLayout::swizzle_offset(
+            s_warp_base_offset +
+            (i * GSTraits::kWarpRowStride + GSTraits::lane_row_id()) *
+                SLayout::kRowStride +
+            (j * GSTraits::kWarpColStride + GSTraits::lane_col_id()) *
+                SLayout::kColStride);
         *reinterpret_cast<uint4*>(g_tensor.data + g_lane_offset) =
             *reinterpret_cast<uint4*>(s_tensor.data + s_lane_offset);
       }
