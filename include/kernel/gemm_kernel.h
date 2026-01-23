@@ -190,6 +190,13 @@ struct Gemm_kernel_t {
       const Element* __restrict__ b,
       AccElement* __restrict__ c) {
     extern __shared__ __align__(sizeof(double)) unsigned char smem[];
+
+    // Debug: check if kernel is entered
+    if (threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0) {
+      printf("[GEMM-KERNEL] Entered kernel! kTM=%d kTN=%d kTK=%d kTKIters=%d\n",
+             kTM, kTN, kTK, kTKIters);
+    }
+
     const Element* a_base_gptr = a + blockIdx.x * kTM * kK;
     const Element* b_base_gptr = b + blockIdx.y * kTN * kK;
     AccElement* c_base_gptr = c + blockIdx.x * kTM * kN + blockIdx.y * kTN;
@@ -223,13 +230,56 @@ struct Gemm_kernel_t {
     for (int k1 = 0; k1 < kTKIters; k1++) {
       g2s_a(a_gtiler.tensor(k1), a_stensor);
       g2s_b(b_gtiler.tensor(k1), b_stensor);
+
+#ifdef FA_DEVICE_SUPPORTED
+      cp_async_commit_and_wait_all();
+#endif
       __syncthreads();
+
+      // Debug: verify shared memory after G2S (first iteration only)
+      if (k1 == 0 && threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0) {
+        auto* a_smem = reinterpret_cast<half*>(smem);
+        printf("[GEMM] After G2S k1=0 - A shared[0..7]: ");
+        for (int d = 0; d < 8; d++) {
+          printf("%.2f ", __half2float(a_smem[d]));
+        }
+        printf("\n");
+        auto* b_smem = a_smem + A_STensor::kNumel;
+        printf("[GEMM] After G2S k1=0 - B shared[0..7]: ");
+        for (int d = 0; d < 8; d++) {
+          printf("%.2f ", __half2float(b_smem[d]));
+        }
+        printf("\n");
+      }
+
       s2r_a(a_stensor, a_rtensor);
       s2r_b(b_stensor, b_rtensor);
       gemm(a_rtensor, b_rtensor, c_rtensor);
     }
+
+    // Debug: print accumulator values before R2S
+    if (threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0) {
+      printf("[GEMM] C accumulator c(0,0).data[0..3]: ");
+      for (int d = 0; d < 4; d++) {
+        printf("%.4f ", c_rtensor(0, 0).data[d]);
+      }
+      printf("\n");
+    }
+
     __syncthreads();
     r2s_c(c_rtensor, c_stensor);
+
+    // Debug: print shared memory after R2S
+    if (threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0) {
+      auto* c_smem = reinterpret_cast<AccElement*>(smem);
+      printf("[GEMM] After R2S - C shared[0..7]: ");
+      for (int d = 0; d < 8; d++) {
+        printf("%.4f ", c_smem[d]);
+      }
+      printf("\n");
+    }
+    __syncthreads();
+
     s2g_c(c_stensor, c_gtensor);
   }
 };

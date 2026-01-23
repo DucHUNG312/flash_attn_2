@@ -12,7 +12,7 @@ static constexpr int kN = 1024;
 static constexpr int kK = 2048;
 
 // Block dimensions
-static constexpr int BLK_M = 256;
+static constexpr int BLK_M = 64;
 static constexpr int BLK_N = 128;
 static constexpr int BLK_K = 64;
 
@@ -156,8 +156,31 @@ TEST(GemmTest, Gemm_1024x1024x2048_Blk256x128x64) {
       ? smem_size_inputs
       : smem_size_accumulators;
 
+  printf(
+      "[HOST] grid=(%d,%d), block=(%d), smem_size=%d bytes\n",
+      gridDim.x,
+      gridDim.y,
+      blockDim.x,
+      smem_size);
+  printf(
+      "[HOST] smem_size_inputs=%d, smem_size_accumulators=%d\n",
+      smem_size_inputs,
+      smem_size_accumulators);
+
+  // Set max dynamic shared memory for the kernel
+  cudaFuncSetAttribute(
+      gemm_f16f16f32_kernel<GemmKernel>,
+      cudaFuncAttributeMaxDynamicSharedMemorySize,
+      smem_size);
+
+  cudaError_t launch_err = cudaGetLastError();
+  printf("[HOST] cudaFuncSetAttribute: %s\n", cudaGetErrorString(launch_err));
+
   gemm_f16f16f32_kernel<GemmKernel>
       <<<gridDim, blockDim, smem_size>>>(d_a, d_b, d_c);
+
+  launch_err = cudaGetLastError();
+  printf("[HOST] Kernel launch: %s\n", cudaGetErrorString(launch_err));
 
   cudaError_t err = cudaDeviceSynchronize();
   ASSERT_EQ(err, cudaSuccess) << "Kernel failed: " << cudaGetErrorString(err);
