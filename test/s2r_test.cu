@@ -48,7 +48,6 @@ __global__ void s2r_r2s_roundtrip_kernel(Element* src, Element* dst) {
   cp_async_commit_and_wait_all();
 #endif
   __syncthreads();
-
   // Step 2: Shared -> Registers (s2r)
   S2r{}(s_tensor, reg);
 

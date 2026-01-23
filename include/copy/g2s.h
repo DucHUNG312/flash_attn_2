@@ -1,6 +1,7 @@
 #pragma once
 
 #include "def.h"
+#include "ptx.h"
 #include "warp.h"
 
 namespace flash {
